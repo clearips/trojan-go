@@ -1,4 +1,3 @@
-//go:build mysql || full || mini
 // +build mysql full mini
 
 package build

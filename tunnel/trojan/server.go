@@ -11,6 +11,7 @@ import (
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/log"
+	"github.com/p4gefau1t/trojan-go/recorder"
 	"github.com/p4gefau1t/trojan-go/redirector"
 	"github.com/p4gefau1t/trojan-go/statistic"
 	"github.com/p4gefau1t/trojan-go/statistic/memory"
@@ -18,6 +19,8 @@ import (
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/mux"
 )
+
+var Auth statistic.Authenticator
 
 // InboundConn is a trojan inbound connection
 type InboundConn struct {
@@ -44,19 +47,19 @@ func (c *InboundConn) Metadata() *tunnel.Metadata {
 func (c *InboundConn) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
 	atomic.AddUint64(&c.sent, uint64(n))
-	c.user.AddTraffic(n, 0)
+	c.user.AddSentTraffic(n)
 	return n, err
 }
 
 func (c *InboundConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
 	atomic.AddUint64(&c.recv, uint64(n))
-	c.user.AddTraffic(0, n)
+	c.user.AddRecvTraffic(n)
 	return n, err
 }
 
 func (c *InboundConn) Close() error {
-	log.Info("user", c.hash, "from", c.Conn.RemoteAddr(), "tunneling to", c.metadata.Address, "closed",
+	log.Debug("user", c.hash, "from", c.Conn.RemoteAddr(), "tunneling to", c.metadata.Address, "closed",
 		"sent:", common.HumanFriendlyTraffic(atomic.LoadUint64(&c.sent)), "recv:", common.HumanFriendlyTraffic(atomic.LoadUint64(&c.recv)))
 	c.user.DelIP(c.ip)
 	return c.Conn.Close()
@@ -103,6 +106,15 @@ func (c *InboundConn) Auth() error {
 		return err
 	}
 	return nil
+}
+
+func (c *InboundConn) Record() {
+	log.Debug("user", c.hash, "from", c.Conn.RemoteAddr(), "tunneling to", c.metadata.Address)
+	recorder.Add(c.hash, c.Conn.RemoteAddr(), c.metadata.Address, "TCP", nil)
+}
+
+func (c *InboundConn) Hash() string {
+	return c.hash
 }
 
 // Server is a trojan tunnel server
@@ -165,6 +177,7 @@ func (s *Server) acceptLoop() {
 				} else {
 					s.connChan <- inboundConn
 					log.Debug("normal trojan connection")
+					inboundConn.Record()
 				}
 
 			case Associate:
@@ -214,29 +227,31 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
 	ctx, cancel := context.WithCancel(ctx)
 
-	// TODO replace this dirty code
-	var auth statistic.Authenticator
-	var err error
-	if cfg.MySQL.Enabled {
-		log.Debug("mysql enabled")
-		auth, err = statistic.NewAuthenticator(ctx, mysql.Name)
-	} else {
-		log.Debug("auth by config file")
-		auth, err = statistic.NewAuthenticator(ctx, memory.Name)
-	}
-	if err != nil {
-		cancel()
-		return nil, common.NewError("trojan failed to create authenticator")
+	if Auth == nil {
+		var err error
+		if cfg.MySQL.Enabled {
+			log.Debug("mysql enabled")
+			Auth, err = statistic.NewAuthenticator(ctx, mysql.Name)
+		} else {
+			log.Debug("auth by config file")
+			Auth, err = statistic.NewAuthenticator(ctx, memory.Name)
+		}
+		if err != nil {
+			cancel()
+			return nil, common.NewError("trojan failed to create authenticator")
+		}
 	}
 
 	if cfg.API.Enabled {
-		go api.RunService(ctx, Name+"_SERVER", auth)
+		go api.RunService(ctx, Name+"_SERVER", Auth)
 	}
+
+	recorder.Capacity = cfg.RecordCapacity
 
 	redirAddr := tunnel.NewAddressFromHostPort("tcp", cfg.RemoteHost, cfg.RemotePort)
 	s := &Server{
 		underlay:   underlay,
-		auth:       auth,
+		auth:       Auth,
 		redirAddr:  redirAddr,
 		connChan:   make(chan tunnel.Conn, 32),
 		muxChan:    make(chan tunnel.Conn, 32),

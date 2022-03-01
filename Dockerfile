@@ -1,20 +1,10 @@
-FROM golang:alpine AS builder
-WORKDIR /
-ARG REF
-RUN apk add git make &&\
-    git clone https://github.com/p4gefau1t/trojan-go.git
-RUN if [[ -z "${REF}" ]]; then \
-        echo "No specific commit provided, use the latest one." \
-    ;else \
-        echo "Use commit ${REF}" &&\
-        cd trojan-go &&\
-        git checkout ${REF} \
-    ;fi
-RUN cd trojan-go &&\
-    make &&\
+FROM golang:1.17.5-alpine3.15 AS builder
+WORKDIR /trojan-go
+RUN apk add git make gcc g++ libtool
+COPY . .
+RUN make trojan-go &&\
     wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O build/geosite.dat &&\
-    wget https://github.com/v2fly/geoip/raw/release/geoip.dat -O build/geoip.dat &&\
-    wget https://github.com/v2fly/geoip/raw/release/geoip-only-cn-private.dat -O build/geoip-only-cn-private.dat
+    wget https://github.com/v2fly/geoip/raw/release/geoip.dat -O build/geoip.dat
 
 FROM alpine
 WORKDIR /

@@ -9,7 +9,9 @@ import (
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/log"
+	"github.com/p4gefau1t/trojan-go/recorder"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	"github.com/p4gefau1t/trojan-go/tunnel/mux"
 )
 
 type PacketConn struct {
@@ -48,6 +50,7 @@ func (c *PacketConn) WriteWithMetadata(payload []byte, metadata *tunnel.Metadata
 	_, err := c.Conn.Write(w.Bytes())
 
 	log.Debug("udp packet remote", c.RemoteAddr(), "metadata", metadata, "size", length)
+	c.Record(metadata, payload)
 	return len(payload), err
 }
 
@@ -79,7 +82,31 @@ func (c *PacketConn) ReadWithMetadata(payload []byte) (int, *tunnel.Metadata, er
 	}
 
 	log.Debug("udp packet from", c.RemoteAddr(), "metadata", addr.String(), "size", length)
+	c.Record(addr, payload[:length])
 	return length, &tunnel.Metadata{
 		Address: addr,
 	}, nil
+}
+
+func (c *PacketConn) getUserHash() string {
+	switch c.Conn.(type) {
+	case *InboundConn:
+		trojanConn := c.Conn.(*InboundConn)
+		return trojanConn.Hash()
+	case *mux.Conn:
+		muxConn := c.Conn.(*mux.Conn)
+		if trojanConn, ok := muxConn.Conn.(*InboundConn); ok {
+			return trojanConn.Hash()
+		}
+	}
+	return ""
+}
+
+func (c *PacketConn) Record(addr net.Addr, payload []byte) {
+	userHash := c.getUserHash()
+	if userHash == "" {
+		return
+	}
+	log.Debug("user", userHash, "from", c.RemoteAddr(), "tunneling UDP to", addr)
+	recorder.Add(userHash, c.RemoteAddr(), addr, "UDP", payload)
 }

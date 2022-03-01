@@ -1,12 +1,12 @@
 NAME := trojan-go
 PACKAGE_NAME := github.com/p4gefau1t/trojan-go
-VERSION := `git describe --dirty`
+VERSION := `git describe --tags`
 COMMIT := `git rev-parse HEAD`
 
 PLATFORM := linux
 BUILD_DIR := build
 VAR_SETTING := -X $(PACKAGE_NAME)/constant.Version=$(VERSION) -X $(PACKAGE_NAME)/constant.Commit=$(COMMIT)
-GOBUILD = env CGO_ENABLED=0 $(GO_DIR)go build -tags "full" -trimpath -ldflags="-s -w -buildid= $(VAR_SETTING)" -o $(BUILD_DIR)
+GOBUILD = $(GO_DIR)go build -tags "full" -trimpath -ldflags="-s -w -buildid= $(VAR_SETTING)" -o $(BUILD_DIR)
 
 .PHONY: trojan-go release test
 normal: clean trojan-go
@@ -19,9 +19,6 @@ clean:
 geoip.dat:
 	wget https://github.com/v2fly/geoip/raw/release/geoip.dat
 
-geoip-only-cn-private.dat:
-	wget https://github.com/v2fly/geoip/raw/release/geoip-only-cn-private.dat
-
 geosite.dat:
 	wget https://github.com/v2fly/domain-list-community/raw/release/dlc.dat -O geosite.dat
 
@@ -33,7 +30,7 @@ trojan-go:
 	mkdir -p $(BUILD_DIR)
 	$(GOBUILD)
 
-install: $(BUILD_DIR)/$(NAME) geoip.dat geoip-only-cn-private.dat geosite.dat
+install: $(BUILD_DIR)/$(NAME) geoip.dat geosite.dat
 	mkdir -p /etc/$(NAME)
 	mkdir -p /usr/share/$(NAME)
 	cp example/*.json /etc/$(NAME)
@@ -43,9 +40,7 @@ install: $(BUILD_DIR)/$(NAME) geoip.dat geoip-only-cn-private.dat geosite.dat
 	systemctl daemon-reload
 	cp geosite.dat /usr/share/$(NAME)/geosite.dat
 	cp geoip.dat /usr/share/$(NAME)/geoip.dat
-	cp geoip-only-cn-private.dat /usr/share/$(NAME)/geoip-only-cn-private.dat
 	ln -fs /usr/share/$(NAME)/geoip.dat /usr/bin/
-	ln -fs /usr/share/$(NAME)/geoip-only-cn-private.dat /usr/bin/
 	ln -fs /usr/share/$(NAME)/geosite.dat /usr/bin/
 
 uninstall:
@@ -56,20 +51,19 @@ uninstall:
 	rm -rd /etc/$(NAME)
 	rm -rd /usr/share/$(NAME)
 	rm /usr/bin/geoip.dat
-	rm /usr/bin/geoip-only-cn-private.dat
 	rm /usr/bin/geosite.dat
 
-%.zip: % geosite.dat geoip.dat geoip-only-cn-private.dat
+%.zip: % geosite.dat geoip.dat
 	@zip -du $(NAME)-$@ -j $(BUILD_DIR)/$</*
 	@zip -du $(NAME)-$@ example/*
 	@-zip -du $(NAME)-$@ *.dat
 	@echo "<<< ---- $(NAME)-$@"
 
-release: geosite.dat geoip.dat geoip-only-cn-private.dat darwin-amd64.zip darwin-arm64.zip linux-386.zip linux-amd64.zip \
+release: geosite.dat geoip.dat darwin-amd64.zip darwin-arm64.zip linux-386.zip linux-amd64.zip \
 	linux-arm.zip linux-armv5.zip linux-armv6.zip linux-armv7.zip linux-armv8.zip \
 	linux-mips-softfloat.zip linux-mips-hardfloat.zip linux-mipsle-softfloat.zip linux-mipsle-hardfloat.zip \
 	linux-mips64.zip linux-mips64le.zip freebsd-386.zip freebsd-amd64.zip \
-	windows-386.zip windows-amd64.zip windows-arm.zip windows-armv6.zip windows-armv7.zip windows-arm64.zip
+	windows-386.zip windows-amd64.zip windows-arm.zip windows-armv6.zip windows-armv7.zip
 
 darwin-amd64:
 	mkdir -p $(BUILD_DIR)/$@
@@ -158,7 +152,3 @@ windows-armv6:
 windows-armv7:
 	mkdir -p $(BUILD_DIR)/$@
 	GOARCH=arm GOOS=windows GOARM=7 $(GOBUILD)/$@
-
-windows-arm64:
-	mkdir -p $(BUILD_DIR)/$@
-	GOARCH=arm64 GOOS=windows $(GOBUILD)/$@

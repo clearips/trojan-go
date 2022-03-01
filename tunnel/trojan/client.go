@@ -51,7 +51,7 @@ func (c *OutboundConn) WriteHeader(payload []byte) (bool, error) {
 	var err error
 	written := false
 	c.headerWrittenOnce.Do(func() {
-		hash := c.user.Hash()
+		hash := c.user.GetHash()
 		buf := bytes.NewBuffer(make([]byte, 0, MaxPacketSize))
 		crlf := []byte{0x0d, 0x0a}
 		buf.Write([]byte(hash))
@@ -78,14 +78,14 @@ func (c *OutboundConn) Write(p []byte) (int, error) {
 		return len(p), nil
 	}
 	n, err := c.Conn.Write(p)
-	c.user.AddTraffic(n, 0)
+	c.user.AddSentTraffic(n)
 	atomic.AddUint64(&c.sent, uint64(n))
 	return n, err
 }
 
 func (c *OutboundConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
-	c.user.AddTraffic(0, n)
+	c.user.AddRecvTraffic(n)
 	atomic.AddUint64(&c.recv, uint64(n))
 	return n, err
 }

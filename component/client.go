@@ -1,4 +1,3 @@
-//go:build client || full || mini
 // +build client full mini
 
 package build

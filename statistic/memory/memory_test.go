@@ -23,10 +23,11 @@ func TestMemoryAuth(t *testing.T) {
 	if !valid {
 		t.Fatal("add, auth")
 	}
-	if user.Hash() != "user1" {
+	if user.GetHash() != "user1" {
 		t.Fatal("Hash")
 	}
-	user.AddTraffic(100, 200)
+	user.AddSentTraffic(100)
+	user.AddRecvTraffic(200)
 	sent, recv := user.GetTraffic()
 	if sent != 100 || recv != 200 {
 		t.Fatal("traffic")
@@ -46,7 +47,7 @@ func TestMemoryAuth(t *testing.T) {
 		t.Fatal("GetIP")
 	}
 
-	user.SetIPLimit(2)
+	auth.SetUserIPLimit(user.GetHash(), 2)
 	user.AddIP("1234")
 	user.AddIP("5678")
 	user.DelIP("1234")
@@ -55,7 +56,7 @@ func TestMemoryAuth(t *testing.T) {
 	}
 	user.DelIP("5678")
 
-	user.SetIPLimit(2)
+	auth.SetUserIPLimit(user.GetHash(), 2)
 	if !user.AddIP("1") || !user.AddIP("2") {
 		t.Fatal("AddIP")
 	}
@@ -66,7 +67,7 @@ func TestMemoryAuth(t *testing.T) {
 		t.Fatal("AddIP")
 	}
 
-	user.SetTraffic(1234, 4321)
+	auth.SetUserTraffic(user.GetHash(), 1234, 4321)
 	if a, b := user.GetTraffic(); a != 1234 || b != 4321 {
 		t.Fatal("SetTraffic")
 	}
@@ -76,7 +77,8 @@ func TestMemoryAuth(t *testing.T) {
 		for {
 			k := 100
 			time.Sleep(time.Second / time.Duration(k))
-			user.AddTraffic(2000/k, 1000/k)
+			user.AddSentTraffic(2000 / k)
+			user.AddRecvTraffic(1000 / k)
 		}
 	}()
 	time.Sleep(time.Second * 4)
@@ -86,7 +88,7 @@ func TestMemoryAuth(t *testing.T) {
 		t.Log("GetSpeed", sent, recv)
 	}
 
-	user.SetSpeedLimit(30, 20)
+	auth.SetUserSpeedLimit(user.GetHash(), 30, 20)
 	time.Sleep(time.Second * 4)
 	if sent, recv := user.GetSpeed(); sent > 60 || recv > 40 {
 		t.Error("SetSpeedLimit", sent, recv)
@@ -94,7 +96,7 @@ func TestMemoryAuth(t *testing.T) {
 		t.Log("SetSpeedLimit", sent, recv)
 	}
 
-	user.SetSpeedLimit(0, 0)
+	auth.SetUserSpeedLimit(user.GetHash(), 0, 0)
 	time.Sleep(time.Second * 4)
 	if sent, recv := user.GetSpeed(); sent < 30 || recv < 20 {
 		t.Error("SetSpeedLimit", sent, recv)

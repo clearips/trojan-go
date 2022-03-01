@@ -71,6 +71,23 @@ message SetUsersResponse {
     string info = 2;
 }
 
+message GetRecordsRequest {
+    string transport = 1;  // UDP, TCP
+    string target_port = 2;
+    bool include_payload = 3;
+}
+
+message GetRecordsResponse {
+    string timestamp = 1;
+    string user_hash = 2;
+    string client_ip = 3;
+    string client_port = 4;
+    string target_host = 5;
+    string target_port = 6;
+    string transport = 7;
+    bytes payload = 8;
+}
+
 service TrojanClientService {
     rpc GetTraffic(GetTrafficRequest) returns(GetTrafficResponse){}
 }
@@ -82,4 +99,6 @@ service TrojanServerService {
     rpc GetUsers(stream GetUsersRequest) returns(stream GetUsersResponse){}
     // setup existing users' config
     rpc SetUsers(stream SetUsersRequest) returns(stream SetUsersResponse){}
+    // get traffic records
+    rpc GetRecords(GetRecordsRequest) returns(stream GetRecordsResponse){}
 }
